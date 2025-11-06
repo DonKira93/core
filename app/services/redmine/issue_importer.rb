@@ -56,7 +56,7 @@ module Redmine
     def upsert_issue(attrs)
       puts "Processing issue ##{attrs['id']}: #{attrs['subject']}"
       issue_id = attrs['id'].to_s
-      issue = Issue.find_or_initialize_by(external_id: issue_id)
+      issue = Gitlab::Issue.find_or_initialize_by(external_id: issue_id)
 
       project_data = attrs['project'] || {}
       project_key = project_data['identifier'].presence || project_data['name'].presence || "query-#{@query_id}"

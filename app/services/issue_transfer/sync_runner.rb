@@ -69,9 +69,9 @@ module IssueTransfer
     end
 
     def fetch_issues(external_ids)
-      return Issue.none if external_ids.blank?
+      return Gitlab::Issue.none if external_ids.blank?
 
-      Issue.where(external_id: external_ids).order(updated_on: :desc)
+      Gitlab::Issue.where(external_id: external_ids).order(updated_on: :desc)
     end
 
     def sync_gitlab(issues)
@@ -109,9 +109,7 @@ module IssueTransfer
     def gitlab_publisher
       Gitlab::IssuePublisher.new(
         client: gitlab_client,
-        project_path: gitlab_project_path,
-        label_mapper: gitlab_label_mapper,
-        assignee_resolver: gitlab_assignee_resolver
+        project_path: gitlab_project_path
       )
     end
 
@@ -125,21 +123,6 @@ module IssueTransfer
 
     def gitlab_project_path
       gitlab_config.project_path
-    end
-
-    def gitlab_label_mapper
-      available_labels = if defined?(GitlabLabel)
-        GitlabLabel.names_for(gitlab_project_path)
-      end
-
-      Gitlab::LabelMapper.new(available_labels: available_labels)
-    end
-
-    def gitlab_assignee_resolver
-      Gitlab::IssueAssigneeResolver.new(
-        client: gitlab_client,
-        mapping: gitlab_config.assignee_map || {}
-      )
     end
   end
 end

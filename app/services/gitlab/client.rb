@@ -81,6 +81,20 @@ module Gitlab
       }
     end
 
+    def project_members(project:, page: 1, per_page: @per_page)
+      params = {
+        per_page: per_page || @per_page,
+        page: page
+      }
+
+      response = get("projects/#{encode_project(project)}/members/all", params)
+      {
+        members: Array(response.body),
+        next_page: response.headers['x-next-page'].presence,
+        total_pages: response.headers['x-total-pages']&.to_i
+      }
+    end
+
     def create_issue(project:, params: {})
       path = "projects/#{encode_project(project)}/issues"
       response = post(path, params)

@@ -29,11 +29,9 @@ module Gitlab
 
     SKIPPED_STATUSES = %w[terminiert geschlossen].freeze
 
-    def initialize(client:, project_path:, label_mapper: LabelMapper.new, assignee_resolver: nil)
+    def initialize(client:, project_path:)
       @client = client
       @project_path = project_path
-      @label_mapper = label_mapper
-      @assignee_resolver = assignee_resolver
     end
 
     def publish(issue)
@@ -82,8 +80,6 @@ module Gitlab
     def build_snapshot(issue)
       IssueTransfer::GitlabPayloadBuilder.new(
         issue: issue,
-        label_mapper: @label_mapper,
-        assignee_resolver: @assignee_resolver,
         project_path: @project_path
       ).call
     end
@@ -106,22 +102,27 @@ module Gitlab
     end
 
     def persist_sync_state(issue, labels, assignee_ids, checksum, response: nil)
-      attributes = {
-        gitlab_labels: Array(labels),
-        gitlab_sync_checksum: checksum,
-        gitlab_last_synced_at: Time.current
-      }
-      attributes[:gitlab_assignee_ids] = Array(assignee_ids) unless assignee_ids.nil?
-
       project_path = issue.gitlab_issue_project_path.presence || @project_path
-      attributes[:gitlab_issue_project_path] = project_path if project_path.present?
 
-      if response
-        attributes[:gitlab_issue_iid] = response['iid'] || response['id'] || issue.gitlab_issue_iid
-        attributes[:gitlab_issue_web_url] = response['web_url'] || response['html_url'] || issue.gitlab_issue_web_url
+      issue.transaction do
+        issue.gitlab_labels = labels if labels
+        issue.gitlab_assignee_ids = assignee_ids unless assignee_ids.nil?
+
+        issue.assign_attributes(
+          gitlab_sync_checksum: checksum,
+          gitlab_last_synced_at: Time.current,
+          gitlab_issue_project_path: project_path.presence
+        )
+
+        if response
+          issue.assign_attributes(
+            gitlab_issue_iid: response['iid'] || response['id'] || issue.gitlab_issue_iid,
+            gitlab_issue_web_url: response['web_url'] || response['html_url'] || issue.gitlab_issue_web_url
+          )
+        end
+
+        issue.save!
       end
-
-      issue.update!(attributes.compact)
     rescue StandardError => e
       Rails.logger.warn("[GitLab] Failed to persist GitLab sync state for issue ##{issue.external_id}: #{e.message}")
     end

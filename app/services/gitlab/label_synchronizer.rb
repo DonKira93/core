@@ -25,7 +25,7 @@ module Gitlab
           external_id = attrs['id'].to_s
           seen_ids << external_id
 
-          record = GitlabLabel.find_or_initialize_by(project_path: @project_path, external_id: external_id)
+          record = Gitlab::Label.find_or_initialize_by(project_path: @project_path, external_id: external_id)
           record.name = attrs['name']
           record.color = attrs['color']
           record.text_color = attrs['text_color']
@@ -45,7 +45,7 @@ module Gitlab
       end
 
       cleanup_missing(seen_ids)
-      total = GitlabLabel.for_project(@project_path).count
+      total = Gitlab::Label.for_project(@project_path).count
       { upserted: upserted, removed: @removed || 0, total: total }
     end
 
@@ -63,7 +63,7 @@ module Gitlab
     end
 
     def cleanup_missing(seen_ids)
-      scope = GitlabLabel.where(project_path: @project_path)
+      scope = Gitlab::Label.where(project_path: @project_path)
       missing = scope.where.not(external_id: seen_ids.to_a)
       @removed = missing.count
       missing.delete_all if @removed.positive?

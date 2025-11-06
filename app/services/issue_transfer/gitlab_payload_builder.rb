@@ -4,11 +4,12 @@ module IssueTransfer
   class GitlabPayloadBuilder
     STATE_CLOSED_VALUES = %w[geschlossen closed erledigt done].freeze
 
-    def initialize(issue:, label_mapper: nil, assignee_resolver: nil, project_path: nil)
+    USERNAME_PATTERN = /\A[\w\.-]+\z/
+
+    def initialize(issue:, project_path: nil)
       @issue = issue
-      @label_mapper = label_mapper
-      @assignee_resolver = assignee_resolver
       @project_path = resolve_project_path(project_path)
+      @assignee_store = Gitlab::Assignee
     end
 
     def call
@@ -33,7 +34,7 @@ module IssueTransfer
 
     private
 
-    attr_reader :issue, :label_mapper, :assignee_resolver, :project_path
+    attr_reader :issue, :project_path, :assignee_store
 
     def resolve_project_path(path)
       explicit = path.presence
@@ -47,27 +48,17 @@ module IssueTransfer
     end
 
     def labels
-      @labels ||= begin
-        if label_mapper
-          label_mapper.labels_for(issue)
-        else
-          Array(issue.gitlab_labels)
-        end
-      end
+      @labels ||= Gitlab::Label.labels_for_issue(issue, project_path: project_path)
     end
 
     def assignee_ids
       @assignee_ids ||= begin
-        if assignee_resolver
-          if Gitlab::LabelMapper.planning_assignee?(issue.assignee_name)
-            []
-          else
-            ids = Array(assignee_resolver.assignee_ids_for(issue)).compact
-            ids = issue.gitlab_assignee_ids if ids.blank?
-            ids
-          end
+        if planning_assignee?
+          []
         else
-          issue.gitlab_assignee_ids
+          resolved = resolve_assignee_ids
+          resolved = issue.gitlab_assignee_ids if resolved.blank?
+          resolved
         end
       end
     end
@@ -111,9 +102,9 @@ module IssueTransfer
       }
 
       joined = labels.join(',') if labels.any?
-        payload[:labels] = joined if joined.present?
+      payload[:labels] = joined if joined.present?
 
-        payload[:assignee_ids] = assignee_ids unless assignee_ids.nil?
+      payload[:assignee_ids] = assignee_ids unless assignee_ids.nil?
       payload
     end
 
@@ -135,6 +126,62 @@ module IssueTransfer
 
     def iso(value)
       value&.iso8601
+    end
+
+    def resolve_assignee_ids
+      return unless assignee_store
+
+      identifier = identifier_for(issue.assignee_name)
+      return if identifier.blank?
+
+      if numeric_identifier?(identifier)
+        return [identifier.to_i]
+      end
+
+      record = if username?(identifier)
+        assignee_store.lookup_by_username(identifier)
+      else
+        assignee_store.lookup_by_full_name(identifier)
+      end
+
+      id = record&.external_id
+      id.present? ? [id.to_i] : nil
+    end
+
+    def planning_assignee?
+      Gitlab::Label.planning_assignee?(issue.assignee_name)
+    end
+
+    def identifier_for(name)
+      return if name.blank?
+
+      trimmed = name.to_s.strip
+      full_name = convert_to_full_name(trimmed)
+      identifier = full_name.presence || normalize_identifier(trimmed)
+      identifier.presence
+    end
+
+    def normalize_identifier(value)
+      value.to_s.strip.delete_prefix('@')
+    end
+
+    def numeric_identifier?(identifier)
+      identifier.match?(/\A\d+\z/)
+    end
+
+    def username?(identifier)
+      identifier.match?(USERNAME_PATTERN)
+    end
+
+    # Redmine exposes assignee names as "Last, First"; convert to "First Last" for GitLab lookup.
+    def convert_to_full_name(raw_name)
+      parts = raw_name.to_s.split(',').map(&:strip)
+      return nil unless parts.size == 2
+
+      first = parts[1]
+      last = parts[0]
+      full = [first, last].join(' ').strip
+      full.presence
     end
   end
 end

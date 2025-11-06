@@ -21,22 +21,12 @@ namespace :gitlab do
       per_page: config.per_page
     )
 
-    assignee_resolver = Gitlab::IssueAssigneeResolver.new(
-      client: client,
-      mapping: config.assignee_map || {}
-    )
-
-    label_names = GitlabLabel.names_for(project_path)
-    label_mapper = Gitlab::LabelMapper.new(available_labels: label_names)
-
     publisher = Gitlab::IssuePublisher.new(
       client: client,
-      project_path: project_path,
-      label_mapper: label_mapper,
-      assignee_resolver: assignee_resolver
+      project_path: project_path
     )
 
-    issues = Issue.order(updated_on: :desc).limit(limit)
+    issues = Gitlab::Issue.order(updated_on: :desc).limit(limit)
 
     if issues.empty?
       puts 'No issues found to publish.'
@@ -101,6 +91,40 @@ namespace :gitlab do
 
     result = synchronizer.call
     puts "Labels synced for #{project_path}."
+    puts "  Upserted: #{result[:upserted]}"
+    puts "  Removed: #{result[:removed]}"
+    puts "  Total known: #{result[:total]}"
+  end
+
+  desc 'Sync GitLab project members into the local assignee cache'
+  task :sync_assignees, [:project] => :environment do |_, args|
+    unless defined?(Gitlab::Assignee)
+      warn 'Gitlab::Assignee model is not available; aborting.'
+      next
+    end
+
+    config = Rails.application.config.x.gitlab
+    base_url = config.base_url
+    private_token = config.private_token
+    project_path = args[:project].presence || config.project_path
+
+    unless base_url.present? && private_token.present? && project_path.present?
+      raise ArgumentError, 'Please configure GITLAB_URL, GITLAB_TOKEN, and provide GITLAB_PROJECT_PATH (or pass project) before running gitlab:sync_assignees.'
+    end
+
+    client = Gitlab::Client.new(
+      base_url: base_url,
+      private_token: private_token,
+      per_page: config.per_page
+    )
+
+    synchronizer = Gitlab::AssigneeSynchronizer.new(
+      client: client,
+      project_path: project_path
+    )
+
+    result = synchronizer.call
+    puts "Assignees synced for #{project_path}."
     puts "  Upserted: #{result[:upserted]}"
     puts "  Removed: #{result[:removed]}"
     puts "  Total known: #{result[:total]}"

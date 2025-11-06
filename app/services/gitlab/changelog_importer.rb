@@ -50,7 +50,7 @@ module Gitlab
 
       diff_payloads = fetch_diff_payloads(sha)
 
-      record = GitlabCommit.find_or_initialize_by(sha: sha)
+      record = Gitlab::Commit.find_or_initialize_by(sha: sha)
       record.project_path = @project_path
       record.title = attrs['title'].presence || attrs['message'].to_s.lines.first&.strip || sha
       record.message = attrs['message']
@@ -115,11 +115,11 @@ module Gitlab
     end
 
     def persist_diff_records(record, diff_payloads)
-      record.diffs.delete_all
+      record.commit_diffs.delete_all
       return [] if diff_payloads.blank?
 
       diff_payloads.map do |diff|
-        record.diffs.create!(
+        record.commit_diffs.create!(
           old_path: diff['old_path'],
           new_path: diff['new_path'],
           new_file: diff['new_file'] || false,

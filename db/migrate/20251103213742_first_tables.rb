@@ -92,7 +92,7 @@ class FirstTables < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    create_table :issues do |t|
+    create_table :gitlab_issues do |t|
       t.string :external_id, null: false
       t.string :project_identifier, null: false
       t.string :tracker
@@ -115,16 +115,13 @@ class FirstTables < ActiveRecord::Migration[8.1]
       t.integer :gitlab_issue_iid
       t.string :gitlab_issue_project_path
       t.string :gitlab_issue_web_url
-      t.jsonb :gitlab_assignee_ids, null: false, default: []
       t.datetime :gitlab_last_synced_at
       t.string :gitlab_sync_checksum
-      t.jsonb :gitlab_labels, null: false, default: []
       t.timestamps
     end
-    add_index :issues, :external_id, unique: true
-    add_index :issues, [:project_identifier, :status]
-    add_index :issues, [:gitlab_issue_project_path, :gitlab_issue_iid], unique: true, where: 'gitlab_issue_iid IS NOT NULL'
-    add_index :issues, :gitlab_labels, using: :gin
+    add_index :gitlab_issues, :external_id, unique: true
+    add_index :gitlab_issues, [:project_identifier, :status]
+    add_index :gitlab_issues, [:gitlab_issue_project_path, :gitlab_issue_iid], unique: true, where: 'gitlab_issue_iid IS NOT NULL'
 
     create_table :wiki_pages do |t|
       t.string :external_id, null: false
@@ -156,7 +153,7 @@ class FirstTables < ActiveRecord::Migration[8.1]
     add_index :gitlab_commits, [:project_path, :committed_at]
 
     create_table :gitlab_commit_diffs do |t|
-      t.references :gitlab_commit, null: false, foreign_key: true
+      t.references :commit, null: false, foreign_key: { to_table: :gitlab_commits }
       t.string :old_path
       t.string :new_path
       t.boolean :new_file, default: false, null: false
@@ -168,7 +165,7 @@ class FirstTables < ActiveRecord::Migration[8.1]
       t.jsonb :raw_payload, default: {}, null: false
       t.timestamps
     end
-    add_index :gitlab_commit_diffs, [:gitlab_commit_id, :new_path], name: "index_commit_diffs_on_commit_and_new_path"
+    add_index :gitlab_commit_diffs, [:commit_id, :new_path], name: "index_commit_diffs_on_commit_and_new_path"
 
     create_table :gitlab_labels do |t|
       t.string :project_path, null: false
@@ -196,5 +193,34 @@ class FirstTables < ActiveRecord::Migration[8.1]
 
     add_index :sync_schedules, [:task_name, :scope], unique: true
 
+    create_table :gitlab_assignees do |t|
+      t.bigint :external_id, null: false
+      t.string :username, null: false
+      t.string :name
+      t.string :email
+      t.string :state
+      t.string :avatar_url
+      t.datetime :last_synced_at
+
+      t.timestamps
+    end
+
+    add_index :gitlab_assignees, :external_id, unique: true
+    add_index :gitlab_assignees, :username
+    add_index :gitlab_assignees, :name
+
+    create_table :gitlab_issue_assignees do |t|
+      t.references :issue, null: false, foreign_key: { to_table: :gitlab_issues }
+      t.references :assignee, null: false, foreign_key: { to_table: :gitlab_assignees }
+      t.timestamps
+    end
+    add_index :gitlab_issue_assignees, [:issue_id, :assignee_id], unique: true, name: "index_issue_assignees_on_issue_and_assignee"
+
+    create_table :gitlab_issue_labels do |t|
+      t.references :issue, null: false, foreign_key: { to_table: :gitlab_issues }
+      t.references :label, null: false, foreign_key: { to_table: :gitlab_labels }
+      t.timestamps
+    end
+    add_index :gitlab_issue_labels, [:issue_id, :label_id], unique: true, name: "index_issue_labels_on_issue_and_label"
   end
 end
