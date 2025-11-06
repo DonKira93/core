@@ -3,6 +3,8 @@
 require 'erb'
 
 module Redmine
+  class Error < StandardError; end
+
   class Client
     DEFAULT_PAGE_SIZE = 100
 
@@ -24,14 +26,16 @@ module Redmine
       end
     end
 
-    def issues(project:, offset: 0, updated_since: nil, sort: nil, limit: nil)
+    def issues(query_id:, offset: 0, updated_since: nil, sort: nil, limit: nil)
+      raise ArgumentError, "Redmine query ID is required" if query_id.blank?
+
       query = {
-        project_id: project,
-        status_id: '*',
         limit: limit || @page_size,
         offset: offset,
-        include: 'journals,attachments'
+        include: 'journals,attachments',
+        query_id: query_id
       }
+
       query[:updated_on] = ">=#{updated_since.utc.iso8601}" if updated_since
       query[:sort] = sort if sort.present?
 
@@ -57,10 +61,48 @@ module Redmine
         req.headers['X-Redmine-API-Key'] = @api_key
         req.headers['Accept'] = 'application/json'
       end
-      response.body
+      handle_response(response)
     rescue Faraday::Error => e
       @logger.error("[Redmine] GET #{path} failed: #{e.message}")
       raise
     end
+
+    def handle_response(response)
+      status = response.status.to_i
+      body = response.body
+
+      unless response.success?
+        message = extract_error_message(body) || "HTTP #{status}"
+        raise Redmine::Error, message
+      end
+
+      if body.is_a?(Hash)
+        error_msg = extract_error_message(body)
+        raise Redmine::Error, error_msg if error_msg
+      end
+
+      body
+    end
+
+    def extract_error_message(body)
+      return if body.blank?
+
+      if body.is_a?(Hash)
+        errors = body['errors']
+        return errors.join(', ') if errors.respond_to?(:join)
+        return errors.to_s if errors.present?
+
+        error = body['error']
+        return error if error.present?
+
+        message = body['message']
+        return message if message.present?
+
+        return nil
+      end
+
+      body.is_a?(String) ? body.presence : body.to_s.presence
+    end
+
   end
 end

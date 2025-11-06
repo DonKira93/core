@@ -104,11 +104,27 @@ class FirstTables < ActiveRecord::Migration[8.1]
       t.string :author_name
       t.datetime :closed_on
       t.datetime :updated_on
-      t.jsonb :raw_payload, default: {}, null: false
+      t.integer :fixed_version_id
+      t.string :fixed_version_name
+      t.text :release_notes
+      t.boolean :release_notes_publish
+      t.string :follow_up_on
+      t.string :complexity
+      t.string :category_name
+      t.string :valid_for
+      t.integer :gitlab_issue_iid
+      t.string :gitlab_issue_project_path
+      t.string :gitlab_issue_web_url
+      t.jsonb :gitlab_assignee_ids, null: false, default: []
+      t.datetime :gitlab_last_synced_at
+      t.string :gitlab_sync_checksum
+      t.jsonb :gitlab_labels, null: false, default: []
       t.timestamps
     end
     add_index :issues, :external_id, unique: true
     add_index :issues, [:project_identifier, :status]
+    add_index :issues, [:gitlab_issue_project_path, :gitlab_issue_iid], unique: true, where: 'gitlab_issue_iid IS NOT NULL'
+    add_index :issues, :gitlab_labels, using: :gin
 
     create_table :wiki_pages do |t|
       t.string :external_id, null: false
@@ -153,6 +169,32 @@ class FirstTables < ActiveRecord::Migration[8.1]
       t.timestamps
     end
     add_index :gitlab_commit_diffs, [:gitlab_commit_id, :new_path], name: "index_commit_diffs_on_commit_and_new_path"
+
+    create_table :gitlab_labels do |t|
+      t.string :project_path, null: false
+      t.string :external_id, null: false
+      t.string :name, null: false
+      t.string :color
+      t.string :text_color
+      t.text :description
+      t.jsonb :raw_payload, null: false, default: {}
+      t.timestamps
+    end
+
+    add_index :gitlab_labels, [:project_path, :external_id], unique: true
+    add_index :gitlab_labels, [:project_path, :name]
+
+    create_table :sync_schedules do |t|
+      t.string :task_name, null: false
+      t.string :scope
+      t.datetime :last_run_at
+      t.datetime :last_success_at
+      t.text :last_error
+      t.jsonb :metadata, null: false, default: {}
+      t.timestamps
+    end
+
+    add_index :sync_schedules, [:task_name, :scope], unique: true
 
   end
 end
