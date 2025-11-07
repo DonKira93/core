@@ -36,6 +36,7 @@ gem "image_processing", "~> 1.2"
 # gem "rack-cors"
 
 gem "ruby_llm"
+gem "fast-mcp"
 # Gemfile
 gem "pg"
 gem "pgvector"
