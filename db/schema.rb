@@ -57,21 +57,36 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_06_102132) do
     t.index ["source_type", "source_id"], name: "index_embeddings_on_source"
   end
 
+  create_table "gitlab_assignees", force: :cascade do |t|
+    t.string "avatar_url"
+    t.datetime "created_at", null: false
+    t.string "email"
+    t.bigint "external_id", null: false
+    t.datetime "last_synced_at"
+    t.string "name"
+    t.string "state"
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
+    t.index ["external_id"], name: "index_gitlab_assignees_on_external_id", unique: true
+    t.index ["name"], name: "index_gitlab_assignees_on_name"
+    t.index ["username"], name: "index_gitlab_assignees_on_username"
+  end
+
   create_table "gitlab_commit_diffs", force: :cascade do |t|
     t.string "a_mode"
     t.string "b_mode"
+    t.bigint "commit_id", null: false
     t.datetime "created_at", null: false
     t.boolean "deleted_file", default: false, null: false
     t.text "diff_text"
-    t.bigint "gitlab_commit_id", null: false
     t.boolean "new_file", default: false, null: false
     t.string "new_path"
     t.string "old_path"
     t.jsonb "raw_payload", default: {}, null: false
     t.boolean "renamed_file", default: false, null: false
     t.datetime "updated_at", null: false
-    t.index ["gitlab_commit_id", "new_path"], name: "index_commit_diffs_on_commit_and_new_path"
-    t.index ["gitlab_commit_id"], name: "index_gitlab_commit_diffs_on_gitlab_commit_id"
+    t.index ["commit_id", "new_path"], name: "index_commit_diffs_on_commit_and_new_path"
+    t.index ["commit_id"], name: "index_gitlab_commit_diffs_on_commit_id"
   end
 
   create_table "gitlab_commits", force: :cascade do |t|
@@ -90,21 +105,27 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_06_102132) do
     t.index ["sha"], name: "index_gitlab_commits_on_sha", unique: true
   end
 
-  create_table "gitlab_labels", force: :cascade do |t|
-    t.string "color"
+  create_table "gitlab_issue_assignees", force: :cascade do |t|
+    t.bigint "assignee_id", null: false
     t.datetime "created_at", null: false
-    t.text "description"
-    t.string "external_id", null: false
-    t.string "name", null: false
-    t.string "project_path", null: false
-    t.jsonb "raw_payload", default: {}, null: false
-    t.string "text_color"
+    t.bigint "issue_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["project_path", "external_id"], name: "index_gitlab_labels_on_project_path_and_external_id", unique: true
-    t.index ["project_path", "name"], name: "index_gitlab_labels_on_project_path_and_name"
+    t.index ["assignee_id"], name: "index_gitlab_issue_assignees_on_assignee_id"
+    t.index ["issue_id", "assignee_id"], name: "index_issue_assignees_on_issue_and_assignee", unique: true
+    t.index ["issue_id"], name: "index_gitlab_issue_assignees_on_issue_id"
   end
 
-  create_table "issues", force: :cascade do |t|
+  create_table "gitlab_issue_labels", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "issue_id", null: false
+    t.bigint "label_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["issue_id", "label_id"], name: "index_issue_labels_on_issue_and_label", unique: true
+    t.index ["issue_id"], name: "index_gitlab_issue_labels_on_issue_id"
+    t.index ["label_id"], name: "index_gitlab_issue_labels_on_label_id"
+  end
+
+  create_table "gitlab_issues", force: :cascade do |t|
     t.string "assignee_name"
     t.string "author_name"
     t.string "category_name"
@@ -116,11 +137,9 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_06_102132) do
     t.integer "fixed_version_id"
     t.string "fixed_version_name"
     t.string "follow_up_on"
-    t.jsonb "gitlab_assignee_ids", default: [], null: false
     t.integer "gitlab_issue_iid"
     t.string "gitlab_issue_project_path"
     t.string "gitlab_issue_web_url"
-    t.jsonb "gitlab_labels", default: [], null: false
     t.datetime "gitlab_last_synced_at"
     t.string "gitlab_sync_checksum"
     t.string "priority"
@@ -133,10 +152,23 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_06_102132) do
     t.datetime "updated_at", null: false
     t.datetime "updated_on"
     t.string "valid_for"
-    t.index ["external_id"], name: "index_issues_on_external_id", unique: true
-    t.index ["gitlab_issue_project_path", "gitlab_issue_iid"], name: "index_issues_on_gitlab_issue_project_path_and_gitlab_issue_iid", unique: true, where: "(gitlab_issue_iid IS NOT NULL)"
-    t.index ["gitlab_labels"], name: "index_issues_on_gitlab_labels", using: :gin
-    t.index ["project_identifier", "status"], name: "index_issues_on_project_identifier_and_status"
+    t.index ["external_id"], name: "index_gitlab_issues_on_external_id", unique: true
+    t.index ["gitlab_issue_project_path", "gitlab_issue_iid"], name: "idx_on_gitlab_issue_project_path_gitlab_issue_iid_d2e16d3175", unique: true, where: "(gitlab_issue_iid IS NOT NULL)"
+    t.index ["project_identifier", "status"], name: "index_gitlab_issues_on_project_identifier_and_status"
+  end
+
+  create_table "gitlab_labels", force: :cascade do |t|
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "external_id", null: false
+    t.string "name", null: false
+    t.string "project_path", null: false
+    t.jsonb "raw_payload", default: {}, null: false
+    t.string "text_color"
+    t.datetime "updated_at", null: false
+    t.index ["project_path", "external_id"], name: "index_gitlab_labels_on_project_path_and_external_id", unique: true
+    t.index ["project_path", "name"], name: "index_gitlab_labels_on_project_path_and_name"
   end
 
   create_table "llm_requests", force: :cascade do |t|
@@ -362,7 +394,11 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_06_102132) do
     t.index ["project_identifier", "slug"], name: "index_wiki_pages_on_project_identifier_and_slug", unique: true
   end
 
-  add_foreign_key "gitlab_commit_diffs", "gitlab_commits"
+  add_foreign_key "gitlab_commit_diffs", "gitlab_commits", column: "commit_id"
+  add_foreign_key "gitlab_issue_assignees", "gitlab_assignees", column: "assignee_id"
+  add_foreign_key "gitlab_issue_assignees", "gitlab_issues", column: "issue_id"
+  add_foreign_key "gitlab_issue_labels", "gitlab_issues", column: "issue_id"
+  add_foreign_key "gitlab_issue_labels", "gitlab_labels", column: "label_id"
   add_foreign_key "llm_requests", "requests"
   add_foreign_key "request_message_parts", "requests"
   add_foreign_key "request_variables", "requests"

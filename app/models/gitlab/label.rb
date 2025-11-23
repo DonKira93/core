@@ -43,7 +43,7 @@ module Gitlab
       "normal" => "complexity::normal"
     }.freeze
 
-    has_many :issue_labels, inverse_of: :label, dependent: :destroy
+    has_many :issue_labels, inverse_of: :label, dependent: :destroy, class_name: 'Gitlab::IssueLabel'
     has_many :issues, through: :issue_labels, source: :issue
 
     PLANNING_ASSIGNEES = [

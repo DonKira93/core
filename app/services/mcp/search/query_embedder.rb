@@ -9,8 +9,15 @@ module Mcp
           return if cleaned.blank?
 
           response = Llm::OllamaClient.embed_text(cleaned)
-          vectors = Array(response.vectors)
-          vector = vectors.first
+          vector_array = Array(response.vectors)
+          return if vector_array.blank?
+
+          vector = if vector_array.first.is_a?(Array)
+            vector_array.first
+          else
+            vector_array
+          end
+
           normalize_vector(vector)
         rescue StandardError => e
           Rails.logger.error("[MCP] Embedding failed: #{e.message}")

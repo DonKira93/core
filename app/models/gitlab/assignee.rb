@@ -2,7 +2,7 @@
 
 module Gitlab
   class Assignee < ApplicationRecord
-    has_many :issue_assignees, inverse_of: :assignee, dependent: :destroy
+    has_many :issue_assignees, inverse_of: :assignee, dependent: :destroy, class_name: 'Gitlab::IssueAssignee'
     has_many :issues, through: :issue_assignees, source: :issue
 
     validates :external_id, presence: true, uniqueness: true

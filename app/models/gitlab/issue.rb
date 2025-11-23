@@ -5,10 +5,10 @@ module Gitlab
     belongs_to :project, class_name: "Project", optional: true if defined?(Project)
     has_many :embeddings, as: :source, dependent: :destroy
 
-    has_many :issue_labels, inverse_of: :issue, dependent: :destroy
+    has_many :issue_labels, inverse_of: :issue, dependent: :destroy, class_name: 'Gitlab::IssueLabel'
     has_many :labels, through: :issue_labels, source: :label
 
-    has_many :issue_assignees, inverse_of: :issue, dependent: :destroy
+    has_many :issue_assignees, inverse_of: :issue, dependent: :destroy, class_name: 'Gitlab::IssueAssignee'
     has_many :assignees, through: :issue_assignees, source: :assignee
 
     validates :external_id, :project_identifier, :title, presence: true
